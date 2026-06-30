@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooled — usada en runtime por la app
+  directUrl = env("DIRECT_URL")   // directa — usada solo por prisma migrate
+}
+
+enum Category {
+  Desayuno
+  Almuerzo
+  Cena
+  Postre
+  Snack
+  Vegetariano
+}
+
+enum Difficulty {
+  Facil
+  Medio
+  Dificil
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  username     String   @unique
+  email        String   @unique
+  passwordHash String? // se completa cuando agreguemos auth
+  avatarUrl    String?
+  bio          String?
+  createdAt    DateTime @default(now())
+
+  recipes Recipe[]
+  likes   Like[]
+
+  @@map("users")
+}
+
+model Recipe {
+  id          String     @id @default(uuid())
+  title       String
+  description String
+  imageUrl    String
+  category    Category
+  difficulty  Difficulty
+  cookTime    String
+  servings    Int
+  tags        String[]
+  createdAt   DateTime   @default(now())
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+
+  ingredients Ingredient[]
+  steps       Step[]
+  likes       Like[]
+
+  @@map("recipes")
+}
+
+model Ingredient {
+  id     String @id @default(uuid())
+  name   String
+  amount String
+
+  recipeId String
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@map("ingredients")
+}
+
+model Step {
+  id          String @id @default(uuid())
+  order       Int
+  description String
+
+  recipeId String
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@map("steps")
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  recipeId String
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, recipeId])
+  @@map("likes")
+}
