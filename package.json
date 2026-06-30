@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "API de Sazón — Node.js + Express + Prisma + PostgreSQL",
   "main": "src/server.js",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
