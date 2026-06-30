@@ -40,13 +40,19 @@ npm run prisma:migrate
 
 Esto lee `prisma/schema.prisma`, crea las tablas en Supabase y genera el cliente de Prisma. Te va a pedir un nombre para la migración (ej: `init`).
 
-### 5. (Opcional) Cargar datos de prueba
+### 5. Cargar datos de prueba
 
 ```bash
 npm run prisma:seed
 ```
 
-Crea un usuario y una receta de ejemplo para probar los endpoints.
+Crea 2 usuarios (Sofia Chen y Marco Rizzi) y las 8 recetas que también existen mockeadas en el frontend (`sazon/data/mockData.ts`), con sus ingredientes, pasos y algunos likes ya cargados.
+
+Para loguearte con cualquiera de los dos usuarios de prueba, la contraseña es `sazon123`:
+- `sofia@sazon.app`
+- `marco@sazon.app`
+
+> Si corrés el seed más de una vez vas a duplicar las recetas (no hay protección contra eso, a propósito, para que sea fácil de reiniciar). Para volver a un estado limpio usá `npx prisma migrate reset --force` — esto borra todo y corre el seed de nuevo automáticamente.
 
 ## Levantar el servidor en local
 
@@ -67,14 +73,51 @@ curl http://localhost:4000/api/recipes
 
 ## Endpoints disponibles
 
+🔒 = requiere header `Authorization: Bearer <token>`
+
 | Método | Ruta | Descripción |
 |---|---|---|
 | GET | `/health` | Chequeo de que el servidor está vivo |
-| GET | `/api/recipes` | Lista todas las recetas |
-| GET | `/api/recipes/:id` | Una receta por id |
+| **Recetas** | | |
+| GET | `/api/recipes` | Lista recetas. Acepta query params: `category`, `difficulty`, `search`, `authorId` |
+| GET | `/api/recipes/:id` | Una receta por id, con ingredientes, pasos y autor |
 | POST | `/api/recipes` | Crea una receta |
 | PUT | `/api/recipes/:id` | Actualiza una receta |
 | DELETE | `/api/recipes/:id` | Borra una receta |
+| GET 🔒 | `/api/recipes/liked/mine` | Recetas con like del usuario logueado |
+| POST 🔒 | `/api/recipes/:id/like` | Toggle de like en una receta |
+| **Usuarios** | | |
+| GET | `/api/users/:id` | Perfil público de un usuario (sin password) |
+| GET | `/api/users/:id/recipes` | Recetas publicadas por ese usuario |
+| **Autenticación** | | |
+| POST | `/api/auth/register` | `{ name, username, email, password }` → crea usuario, devuelve `{ token, user }` |
+| POST | `/api/auth/login` | `{ email, password }` → devuelve `{ token, user }` |
+| GET 🔒 | `/api/auth/me` | Devuelve el usuario del token actual |
+
+### Ejemplos de filtros de búsqueda
+
+```bash
+curl "http://localhost:4000/api/recipes?category=Postre"
+curl "http://localhost:4000/api/recipes?difficulty=Fácil"
+curl "http://localhost:4000/api/recipes?search=avena"
+curl "http://localhost:4000/api/recipes?authorId=<uuid-del-autor>"
+```
+
+### Ejemplo de login
+
+```bash
+curl -X POST http://localhost:4000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"sofia@sazon.app","password":"sazon123"}'
+
+# { "token": "eyJ...", "user": { "id": "...", "name": "Sofia Chen", ... } }
+```
+
+El `token` se usa en cualquier ruta marcada con 🔒:
+```bash
+curl http://localhost:4000/api/auth/me \
+  -H "Authorization: Bearer eyJ..."
+```
 
 ## Comandos útiles de Prisma
 
@@ -101,8 +144,19 @@ backend-sazon/
 │   ├── app.js             → configuración de Express (middlewares, rutas)
 │   ├── routes/            → define qué URL llama a qué controlador
 │   ├── controllers/       → la lógica de cada endpoint
+│   ├── middleware/
+│   │   └── auth.js        → exige JWT válido, agrega req.userId
 │   └── lib/
 │       ├── prisma.js      → instancia única del cliente Prisma
-│       └── asyncHandler.js → wrapper para manejar errores en rutas async
+│       ├── asyncHandler.js → wrapper para manejar errores en rutas async
+│       ├── jwt.js         → firma y verifica tokens
+│       ├── difficulty.js  → traduce dificultad entre DB (sin tilde) y API (con tilde)
+│       └── serializers.js → da forma final a la respuesta (oculta passwordHash, traduce dificultad)
 └── .env                   → variables de entorno (no se sube a git)
 ```
+
+## Notas de diseño
+
+- **`difficulty` sin tilde en la base**: Postgres/Prisma no manejan bien enums con acentos, así que en la base se guarda `Facil`/`Medio`/`Dificil` y `src/lib/difficulty.js` lo traduce a `Fácil`/`Medio`/`Difícil` para que la API hable el mismo idioma que el frontend (`types/index.ts`).
+- **`passwordHash` nunca sale de la API**: tanto en `/api/users/:id` como anidado dentro de `author` en cada receta, se filtra con `toApiUser()` antes de responder.
+- **JWT sin refresh token**: por simplicidad el token dura 7 días y no hay refresh — alcanza para esta etapa, se puede agregar después si hace falta.

@@ -1,18 +1,36 @@
 const prisma = require('../lib/prisma');
+const { difficultyToDb } = require('../lib/difficulty');
+const { toApiRecipe } = require('../lib/serializers');
 
-// Incluye ingredientes, pasos y datos básicos del autor en cada receta
 const RECIPE_INCLUDE = {
   ingredients: true,
   steps: { orderBy: { order: 'asc' } },
   author: { select: { id: true, name: true, username: true, avatarUrl: true } },
 };
 
+// GET /api/recipes?category=Desayuno&difficulty=Fácil&search=avena&authorId=...
 async function getAll(req, res) {
+  const { category, difficulty, search, authorId } = req.query;
+
+  const where = {};
+  if (category) where.category = category;
+  if (difficulty) where.difficulty = difficultyToDb(difficulty);
+  if (authorId) where.authorId = authorId;
+  if (search) {
+    where.OR = [
+      { title: { contains: search, mode: 'insensitive' } },
+      { tags: { hasSome: [search.toLowerCase()] } },
+      { ingredients: { some: { name: { contains: search, mode: 'insensitive' } } } },
+    ];
+  }
+
   const recipes = await prisma.recipe.findMany({
+    where,
     include: RECIPE_INCLUDE,
     orderBy: { createdAt: 'desc' },
   });
-  res.json(recipes);
+
+  res.json(recipes.map(toApiRecipe));
 }
 
 async function getById(req, res) {
@@ -25,7 +43,7 @@ async function getById(req, res) {
   if (!recipe) {
     return res.status(404).json({ error: 'Receta no encontrada' });
   }
-  res.json(recipe);
+  res.json(toApiRecipe(recipe));
 }
 
 async function create(req, res) {
@@ -37,7 +55,7 @@ async function create(req, res) {
       description,
       imageUrl,
       category,
-      difficulty,
+      difficulty: difficultyToDb(difficulty),
       cookTime,
       servings,
       tags: tags ?? [],
@@ -48,7 +66,7 @@ async function create(req, res) {
     include: RECIPE_INCLUDE,
   });
 
-  res.status(201).json(recipe);
+  res.status(201).json(toApiRecipe(recipe));
 }
 
 async function update(req, res) {
@@ -57,11 +75,20 @@ async function update(req, res) {
 
   const recipe = await prisma.recipe.update({
     where: { id },
-    data: { title, description, imageUrl, category, difficulty, cookTime, servings, tags },
+    data: {
+      title,
+      description,
+      imageUrl,
+      category,
+      difficulty: difficulty ? difficultyToDb(difficulty) : undefined,
+      cookTime,
+      servings,
+      tags,
+    },
     include: RECIPE_INCLUDE,
   });
 
-  res.json(recipe);
+  res.json(toApiRecipe(recipe));
 }
 
 async function remove(req, res) {
@@ -70,4 +97,32 @@ async function remove(req, res) {
   res.status(204).send();
 }
 
-module.exports = { getAll, getById, create, update, remove };
+// POST /api/recipes/:id/like — requiere auth. Toggle: si ya tenía like lo quita, sino lo agrega.
+async function toggleLike(req, res) {
+  const { id: recipeId } = req.params;
+  const userId = req.userId;
+
+  const existing = await prisma.like.findUnique({
+    where: { userId_recipeId: { userId, recipeId } },
+  });
+
+  if (existing) {
+    await prisma.like.delete({ where: { id: existing.id } });
+    return res.json({ liked: false });
+  }
+
+  await prisma.like.create({ data: { userId, recipeId } });
+  res.json({ liked: true });
+}
+
+// GET /api/recipes/liked/mine — requiere auth. Recetas que le gustan al usuario logueado.
+async function getLikedByMe(req, res) {
+  const likes = await prisma.like.findMany({
+    where: { userId: req.userId },
+    include: { recipe: { include: RECIPE_INCLUDE } },
+  });
+
+  res.json(likes.map(like => toApiRecipe(like.recipe)));
+}
+
+module.exports = { getAll, getById, create, update, remove, toggleLike, getLikedByMe };

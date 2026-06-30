@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const recipesRoutes = require('./routes/recipes.routes');
+const authRoutes = require('./routes/auth.routes');
+const usersRoutes = require('./routes/users.routes');
 
 const app = express();
 
@@ -12,6 +14,8 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/api/recipes', recipesRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/users', usersRoutes);
 
 // Manejo de errores centralizado: cualquier throw o rechazo de promesa en un
 // controlador termina acá en lugar de tirar abajo el servidor.
