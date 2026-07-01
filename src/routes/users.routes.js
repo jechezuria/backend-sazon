@@ -5,8 +5,9 @@ const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Ruta estática antes de /:id para que Express no lo interprete como ID
+// Rutas estáticas antes de /:id para que Express no lo interprete como ID
 router.put('/me', requireAuth, asyncHandler(usersController.updateMe));
+router.put('/me/password', requireAuth, asyncHandler(usersController.changePassword));
 
 router.get('/:id', asyncHandler(usersController.getById));
 router.get('/:id/recipes', asyncHandler(usersController.getRecipesByUser));

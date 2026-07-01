@@ -6,7 +6,7 @@ const { toApiUser } = require('../lib/serializers');
 const SALT_ROUNDS = 10;
 
 async function register(req, res) {
-  const { name, username, email, password } = req.body;
+  const { name, username, email, password, avatarUrl } = req.body;
 
   if (!name || !username || !email || !password) {
     return res.status(400).json({ error: 'name, username, email y password son obligatorios' });
@@ -30,7 +30,7 @@ async function register(req, res) {
 
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
   const user = await prisma.user.create({
-    data: { name, username, email, passwordHash },
+    data: { name, username, email, passwordHash, ...(avatarUrl && { avatarUrl }) },
   });
 
   const token = signToken(user.id);

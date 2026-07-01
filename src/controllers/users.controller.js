@@ -1,5 +1,8 @@
+const bcrypt = require('bcryptjs');
 const prisma = require('../lib/prisma');
 const { toApiUser, toApiRecipe } = require('../lib/serializers');
+
+const SALT_ROUNDS = 10;
 
 async function getById(req, res) {
   const { id } = req.params;
@@ -41,4 +44,29 @@ async function updateMe(req, res) {
   res.json(toApiUser(user));
 }
 
-module.exports = { getById, getRecipesByUser, updateMe };
+async function changePassword(req, res) {
+  const { newPassword } = req.body;
+
+  if (!newPassword) {
+    return res.status(400).json({ error: 'La nueva contraseña es obligatoria' });
+  }
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
+  }
+  if (!/[a-zA-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 1 letra y 1 número' });
+  }
+  if (!/^[a-zA-Z0-9]+$/.test(newPassword)) {
+    return res.status(400).json({ error: 'La contraseña solo puede contener letras y números' });
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+  await prisma.user.update({
+    where: { id: req.userId },
+    data: { passwordHash },
+  });
+
+  res.json({ message: 'Contraseña actualizada correctamente' });
+}
+
+module.exports = { getById, getRecipesByUser, updateMe, changePassword };
