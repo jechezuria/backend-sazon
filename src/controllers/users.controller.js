@@ -26,4 +26,19 @@ async function getRecipesByUser(req, res) {
   res.json(recipes.map(toApiRecipe));
 }
 
-module.exports = { getById, getRecipesByUser };
+async function updateMe(req, res) {
+  const { name, bio, avatarUrl } = req.body;
+
+  const user = await prisma.user.update({
+    where: { id: req.userId },
+    data: {
+      ...(name      !== undefined && { name }),
+      ...(bio       !== undefined && { bio }),
+      ...(avatarUrl !== undefined && { avatarUrl }),
+    },
+  });
+
+  res.json(toApiUser(user));
+}
+
+module.exports = { getById, getRecipesByUser, updateMe };

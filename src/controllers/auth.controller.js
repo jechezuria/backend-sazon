@@ -11,8 +11,14 @@ async function register(req, res) {
   if (!name || !username || !email || !password) {
     return res.status(400).json({ error: 'name, username, email y password son obligatorios' });
   }
-  if (password.length < 6) {
-    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
+  }
+  if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 1 letra y 1 número' });
+  }
+  if (!/^[a-zA-Z0-9]+$/.test(password)) {
+    return res.status(400).json({ error: 'La contraseña solo puede contener letras y números' });
   }
 
   const existing = await prisma.user.findFirst({
