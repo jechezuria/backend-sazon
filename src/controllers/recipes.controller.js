@@ -71,7 +71,7 @@ async function create(req, res) {
 
 async function update(req, res) {
   const { id } = req.params;
-  const { title, description, imageUrl, category, difficulty, cookTime, servings, tags } = req.body;
+  const { title, description, imageUrl, category, difficulty, cookTime, servings, tags, ingredients, steps } = req.body;
 
   const recipe = await prisma.recipe.update({
     where: { id },
@@ -84,6 +84,13 @@ async function update(req, res) {
       cookTime,
       servings,
       tags,
+      // Reemplaza ingredientes y pasos si vienen en el body
+      ...(ingredients && {
+        ingredients: { deleteMany: {}, create: ingredients },
+      }),
+      ...(steps && {
+        steps: { deleteMany: {}, create: steps },
+      }),
     },
     include: RECIPE_INCLUDE,
   });
